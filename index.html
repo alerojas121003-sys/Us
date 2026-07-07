@@ -286,7 +286,15 @@ textarea::placeholder{ color:#C9A0B0; }
 /* ============================================================
    HIDDEN PDF TEMPLATE
    ============================================================ */
-#pdf-template{ display:none; }
+/* Rendered off-screen (not display:none) so html2canvas can capture it */
+#pdf-template{
+  position:absolute;
+  top:0; left:-10000px;
+  width:794px;              /* A4 width at 96dpi */
+  background:#FFFFFF;
+  visibility:hidden;
+}
+#pdf-template.rendering{ visibility:visible; }
 
 /* General animations */
 @keyframes fadeIn{ from{ opacity:0; transform:translateY(18px);} to{ opacity:1; transform:none;} }
@@ -595,22 +603,39 @@ document.getElementById("exportBtn").addEventListener("click", async () => {
 
   const template = document.getElementById("pdf-template");
   template.innerHTML = buildPdfHtml();
-  template.style.display = "block";
+  template.classList.add("rendering");
+
+  // html2canvas captures with the page's current scroll offset, which
+  // produces a blank canvas when the user is scrolled down. Scroll to
+  // the top first and force offsets to zero in the options below.
+  const prevScroll = window.scrollY;
+  window.scrollTo(0, 0);
+  await new Promise(r => setTimeout(r, 350));   // let layout + fonts settle
 
   try {
     await html2pdf().set({
       margin:       [8, 8, 10, 8],
       filename:     "our-love-journal.pdf",
       image:        { type: "jpeg", quality: 0.96 },
-      html2canvas:  { scale: 2, useCORS: true, backgroundColor: "#FFFFFF" },
+      html2canvas:  {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#FFFFFF",
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: 794,
+        width: 794
+      },
       jsPDF:        { unit: "mm", format: "a4", orientation: "portrait" },
-      pagebreak:    { mode: ["avoid-all", "css", "legacy"] }
+      pagebreak:    { mode: ["css", "legacy"] }
     }).from(template).save();
   } catch (err) {
     alert("Could not generate the PDF: " + err.message);
   } finally {
-    template.style.display = "none";
+    template.classList.remove("rendering");
+    template.innerHTML = "";
     loader.classList.remove("show");
+    window.scrollTo(0, prevScroll);
   }
 });
 </script>
